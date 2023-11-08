@@ -37,15 +37,15 @@ const playerMarker = leaflet.marker(MERRILL_CLASSROOM);
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
 
-const sensorButton = document.querySelector("#sensor")!;
-sensorButton.addEventListener("click", () => {
-  navigator.geolocation.watchPosition((position) => {
-    playerMarker.setLatLng(
-      leaflet.latLng(position.coords.latitude, position.coords.longitude),
-    );
-    map.setView(playerMarker.getLatLng());
-  });
-});
+// const sensorButton = document.querySelector("#sensor")!;
+// sensorButton.addEventListener("click", () => {
+//   navigator.geolocation.watchPosition((position) => {
+//     playerMarker.setLatLng(
+//       leaflet.latLng(position.coords.latitude, position.coords.longitude),
+//     );
+//     map.setView(playerMarker.getLatLng());
+//   });
+// });
 
 let points = 0;
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
@@ -70,13 +70,23 @@ function makePit(i: number, j: number) {
     const container = document.createElement("div");
     container.innerHTML = `
                 <div>There is a pit here at "${i},${j}". It has value <span id="value">${value}</span>.</div>
-                <button id="poke">poke</button>`;
+                <button id="poke">poke</button><button id="deposite">deposite</button>`;
     const poke = container.querySelector<HTMLButtonElement>("#poke")!;
     poke.addEventListener("click", () => {
+      if (value <= 0) return;
       value--;
       container.querySelector<HTMLSpanElement>("#value")!.innerHTML =
         value.toString();
       points++;
+      statusPanel.innerHTML = `${points} points accumulated`;
+    });
+    const deposite = container.querySelector<HTMLButtonElement>("#deposite")!;
+    deposite.addEventListener("click", () => {
+      if (points <= 0) return;
+      value++;
+      container.querySelector<HTMLSpanElement>("#value")!.innerHTML =
+        value.toString();
+      points--;
       statusPanel.innerHTML = `${points} points accumulated`;
     });
     return container;
