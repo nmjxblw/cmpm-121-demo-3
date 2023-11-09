@@ -69,7 +69,7 @@ function makePit(i: number, j: number) {
     let value = Math.floor(luck([i, j, "initialValue"].toString()) * 100);
     const container = document.createElement("div");
     container.innerHTML = `
-                <div>There is a pit here at "${i},${j}". It has value <span id="value">${value}</span>.</div>
+                <div>There is a pit here at "${i},${j}#${serial}". It has value <span id="value">${value}</span>.</div>
                 <button id="poke">poke</button><button id="deposite">deposite</button>`;
     const poke = container.querySelector<HTMLButtonElement>("#poke")!;
     poke.addEventListener("click", () => {
@@ -93,7 +93,7 @@ function makePit(i: number, j: number) {
   });
   pit.addTo(map);
 }
-
+let serial = 0;
 for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
   for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
     if (luck([i, j].toString()) < PIT_SPAWN_PROBABILITY) {
