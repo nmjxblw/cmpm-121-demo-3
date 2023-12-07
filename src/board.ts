@@ -1,8 +1,12 @@
 import leaflet from "leaflet";
 
-interface Cell {
-  readonly i: number;
-  readonly j: number;
+export interface Cell {
+  readonly x: number;
+  readonly y: number;
+}
+export interface Coin {
+  readonly cell: Cell;
+  readonly serial: number;
 }
 
 export class Board {
@@ -18,8 +22,8 @@ export class Board {
   }
 
   private getCanonicalCell(cell: Cell): Cell {
-    const { i, j } = cell;
-    const key = [i, j].toString();
+    const { x, y } = cell;
+    const key = [x, y].toString();
     if (!this.knownCells.has(key)) {
       this.knownCells.set(key, cell);
     }
@@ -27,24 +31,109 @@ export class Board {
   }
 
   getCellForPoint(point: leaflet.LatLng): Cell {
+    const step = 0.0001;
+    let { lat, lng } = point;
+    lat = Math.round(lat / step);
+    lng = Math.round(lng / step);
     return this.getCanonicalCell({
-      i: point.lat,
-      j: point.lng,
+      x: lat,
+      y: lng,
     });
   }
 
   getCellBounds(cell: Cell): leaflet.LatLngBounds {
-    // ...
+    // return leaflet.latLngBounds([
+    //   [cell.x, cell.y],
+    //   [cell.x + this.tileWidth, cell.y + this.tileWidth],
+    // ]);
+    const { x, y } = cell;
+    const CURRENT_POINT = leaflet.latLng({
+      lat: x,
+      lng: y,
+    });
     return leaflet.latLngBounds([
-      [cell.i * this.tileWidth, cell.j * this.tileWidth],
-      [(cell.i + 1) * this.tileWidth, (cell.j + 1) * this.tileWidth],
+      [CURRENT_POINT.lat, CURRENT_POINT.lng],
+      [CURRENT_POINT.lat + this.tileWidth, CURRENT_POINT.lng + this.tileWidth],
     ]);
   }
 
-  //   getCellsNearPoint(point: leaflet.LatLng): Cell[] {
-  //     const resultCells: Cell[] = [];
-  //     const originCell = this.getCellForPoint(point);
+  getCellsNearPoint(point: leaflet.LatLng): Cell[] {
+    const resultCells: Cell[] = [];
+    const originCell = this.getCellForPoint(point);
+    for (let h = -1; h <= 1; h++) {
+      for (let v = -1; v <= 1; v++) {
+        if (v == 0 && h == 0) continue;
+        const cell = this.getCanonicalCell({
+          x: originCell.x + h,
+          y: originCell.y + v,
+        });
+        resultCells.push(cell);
+      }
+    }
 
-  //     return resultCells;
-  //   }
+    return resultCells;
+  }
+
+  consoleKnownCells() {
+    console.log(this.knownCells);
+  }
+}
+
+export class CellInfo {
+  cell: Cell;
+  coins: Coin[];
+  coinsStrings: string[];
+  stringizedCell: string;
+
+  constructor(cell: Cell) {
+    this.cell = cell;
+    this.coins = [];
+    this.coinsStrings = [];
+    this.stringizedCell = ``;
+  }
+
+  addCoin(): void {
+    this.coins.push({
+      cell: this.cell,
+      serial:
+        this.coins.length > 0
+          ? this.coins[this.coins.length - 1].serial + 1
+          : 0,
+    });
+    this.coinsStrings.push(
+      this.cell.x.toString() +
+        ":" +
+        this.cell.y.toString() +
+        "#" +
+        this.coins[this.coins.length - 1].serial.toString(),
+    );
+    this.stringizedCell = this.coinsStrings.join(" ");
+  }
+
+  getCellCoinStrings(): string[] {
+    return (this.coinsStrings = this.coins.map(
+      (coin) =>
+        coin.cell.x.toString() +
+        ":" +
+        coin.cell.y.toString() +
+        "#" +
+        coin.serial.toString(),
+    ));
+  }
+  getStringizedCell(): string {
+    return (this.stringizedCell = this.getCellCoinStrings().join(" "));
+  }
+  deserializeCell(): void {
+    this.coinsStrings = this.stringizedCell.split(" ");
+    this.coins = this.coinsStrings.map((coinString) => {
+      const [x, y, serial] = coinString.split(/[:#]/);
+      return {
+        cell: {
+          x: parseFloat(x),
+          y: parseFloat(y),
+        },
+        serial: parseInt(serial),
+      };
+    });
+  }
 }

@@ -3,6 +3,7 @@ import "./style.css";
 import leaflet from "leaflet";
 import luck from "./luck";
 import "./leafletWorkaround";
+import { Board, CellInfo } from "./board.ts";
 
 const MERRILL_CLASSROOM = leaflet.latLng({
   lat: 36.9995,
@@ -33,44 +34,58 @@ leaflet
   })
   .addTo(map);
 
+const myBoard: Board = new Board(TILE_DEGREES, NEIGHBORHOOD_SIZE);
+const myCellInfo: Map<string, CellInfo> = new Map<string, CellInfo>();
+myBoard.getCellBounds(myBoard.getCellForPoint(MERRILL_CLASSROOM));
+
 const playerMarker = leaflet.marker(MERRILL_CLASSROOM);
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
-
-// const sensorButton = document.querySelector("#sensor")!;
-// sensorButton.addEventListener("click", () => {
-//   navigator.geolocation.watchPosition((position) => {
-//     playerMarker.setLatLng(
-//       leaflet.latLng(position.coords.latitude, position.coords.longitude),
-//     );
-//     map.setView(playerMarker.getLatLng());
-//   });
-// });
 
 let points = 0;
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
 statusPanel.innerHTML = "No points yet...";
 
-function makePit(i: number, j: number) {
-  const bounds = leaflet.latLngBounds([
-    [
-      MERRILL_CLASSROOM.lat + i * TILE_DEGREES,
-      MERRILL_CLASSROOM.lng + j * TILE_DEGREES,
-    ],
-    [
-      MERRILL_CLASSROOM.lat + (i + 1) * TILE_DEGREES,
-      MERRILL_CLASSROOM.lng + (j + 1) * TILE_DEGREES,
-    ],
-  ]);
+/**
+ * the function will create a pit at the given coordinates.
+ * @param {number} i latitude
+ * @param {number} j longitude
+ */
 
+function makePit(i: number, j: number) {
+  const bounds = myBoard.getCellBounds({
+    x: MERRILL_CLASSROOM.lat + i,
+    y: MERRILL_CLASSROOM.lng + j,
+  });
+  const cell = myBoard.getCellForPoint(
+    new leaflet.LatLng(MERRILL_CLASSROOM.lat + i, MERRILL_CLASSROOM.lng + j),
+  );
+  const key: string = cell.x.toString() + ":" + cell.y.toString();
+
+  myCellInfo.set(key, new CellInfo(cell));
   const pit = leaflet.rectangle(bounds) as leaflet.Layer;
 
   pit.bindPopup(() => {
     let value = Math.floor(luck([i, j, "initialValue"].toString()) * 100);
+    for (let iter = 0; iter < value; iter++) {
+      myCellInfo.get(key)!.addCoin();
+    }
     const container = document.createElement("div");
-    container.innerHTML = `
-                <div>There is a pit here at "${i},${j}#${serial}". It has value <span id="value">${value}</span>.</div>
-                <button id="poke">poke</button><button id="deposite">deposite</button>`;
+    let context: string;
+    let cellCoinStrings: string[] | undefined = myCellInfo
+      .get(key)!
+      .getCellCoinStrings();
+    context = `<div>There is a pit here at "${i},${j}". It has value <span id="value">${value}</span>.
+    </div><p>Coins:</p>
+    <div id="scrollableContainer">`;
+    for (let iter = 0; iter < value; iter++) {
+      if (cellCoinStrings) {
+        context += `<p>${cellCoinStrings[iter]} <button id="poke">poke</button></p>`;
+      }
+    }
+    context += `</div><button id="deposite">deposit</button>`;
+    container.innerHTML = context;
+
     const poke = container.querySelector<HTMLButtonElement>("#poke")!;
     poke.addEventListener("click", () => {
       if (value <= 0) return;
@@ -80,6 +95,7 @@ function makePit(i: number, j: number) {
       points++;
       statusPanel.innerHTML = `${points} points accumulated`;
     });
+
     const deposite = container.querySelector<HTMLButtonElement>("#deposite")!;
     deposite.addEventListener("click", () => {
       if (points <= 0) return;
@@ -93,11 +109,14 @@ function makePit(i: number, j: number) {
   });
   pit.addTo(map);
 }
-let serial = 0;
 for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
   for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
-    if (luck([i, j].toString()) < PIT_SPAWN_PROBABILITY) {
-      makePit(i, j);
+    if (
+      luck([i * TILE_DEGREES, j * TILE_DEGREES].toString()) <
+      PIT_SPAWN_PROBABILITY
+    ) {
+      makePit(i * TILE_DEGREES, j * TILE_DEGREES);
     }
   }
 }
+myBoard.consoleKnownCells();
