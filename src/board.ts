@@ -124,9 +124,15 @@ export class CellInfo {
     return result;
   }
 
-  deserializeCell(): void {
-    this.coinsJsonString = this.cellJsonString.split(" ");
+  deserializeCell(cellJsonString: string): CellInfo {
+    if (cellJsonString == null || cellJsonString.length === 0) {
+      return this;
+    }
+    this.cellJsonString = cellJsonString;
+    this.coinsJsonString = cellJsonString.split(" ");
     this.getCoinsFromJsonString();
+    this.cell = this.coins[0].cell;
+    return this;
   }
 
   getCoinsToJsonString(): string[] {

@@ -3,7 +3,7 @@ import "./style.css";
 import leaflet from "leaflet";
 import luck from "./luck";
 import "./leafletWorkaround";
-import { Coin, Board, CellInfo } from "./board.ts";
+import { Coin, Board, CellInfo, Cell } from "./board.ts";
 
 const MERRILL_CLASSROOM = leaflet.latLng({
   lat: 36.9995,
@@ -35,10 +35,10 @@ leaflet
   .addTo(map);
 
 const myBoard: Board = new Board(TILE_DEGREES, NEIGHBORHOOD_SIZE);
-const myCellInfo: Map<string, CellInfo> = new Map<string, CellInfo>();
+const myCellInfo: Map<string, CellInfo> = getMyCellInfo();
 myBoard.getCellBounds(myBoard.getCellForPoint(MERRILL_CLASSROOM));
 
-const playerCoins: Coin[] = [];
+const playerCoins: Coin[] = getPlayerCoins();
 const optionStrings: string[] = [
   "east",
   "west",
@@ -48,13 +48,20 @@ const optionStrings: string[] = [
   "reset",
 ];
 
+const playerMarker = leaflet.marker(getPlayerPos());
+let playerPos: leaflet.LatLng = playerMarker.getLatLng();
+const playerPath: leaflet.LatLng[] = [];
+let playerPathPolyline: leaflet.Polyline | null = null;
+
 //button listener setting
 optionStrings.forEach((opstring) => {
   document.querySelector(`#${opstring}`)!.addEventListener("click", () => {
     switch (opstring) {
       case "sensor":
+        sensorClick();
         break;
       case "reset":
+        resetClick();
         break;
       default:
         playerMove(opstring);
@@ -89,7 +96,7 @@ function playerMove(dir: string) {
   updatePits(playerPos);
 
   playerPath.push(Object.assign({}, playerPos));
-  // updatePlayerPath();
+  updatePlayerPath();
 }
 
 /**
@@ -115,14 +122,87 @@ function removeAllPits(): void {
   pits.length = 0;
 }
 
-const playerMarker = leaflet.marker(MERRILL_CLASSROOM);
-const playerPos: leaflet.LatLng = playerMarker.getLatLng();
-const playerPath: leaflet.LatLng[] = [];
+/**
+ * to enable sensor
+ */
+function sensorClick(): void {
+  navigator.geolocation.watchPosition((position) => {
+    playerMarker.setLatLng(
+      leaflet.latLng(position.coords.latitude, position.coords.longitude),
+    );
+    map.setView(playerMarker.getLatLng());
+  });
+}
+
+/**
+ * Clear all cache and reload the page
+ */
+function resetClick(): void {
+  localStorage.clear();
+  myCellInfo.clear();
+  playerPos = MERRILL_CLASSROOM;
+  playerCoins.length = 0;
+  playerPath.length = 0;
+  location.reload();
+}
+
+/**
+ * Display player path
+ */
+function updatePlayerPath(): void {
+  if (playerPathPolyline) {
+    playerPathPolyline.removeFrom(map);
+  }
+  playerPathPolyline = leaflet
+    .polyline(playerPath, {
+      color: "red",
+      weight: 2,
+    })
+    .addTo(map);
+}
+/**
+ * Get myCellInfo if localStorage contain item "myCellInfo"
+ */
+function getMyCellInfo(): Map<string, CellInfo> {
+  const storedData = localStorage.getItem("myCellInfo");
+
+  if (storedData) {
+    const dataEntries: [string, string][] = JSON.parse(storedData);
+    return new Map<string, CellInfo>(
+      dataEntries.map(([key, cellInfoJsonString]) => {
+        const keySplit: string[] = key.split(":");
+        const keyX: number = parseFloat(keySplit[0]);
+        const keyY: number = parseFloat(keySplit[1]);
+        const tempCell: Cell = { x: keyX, y: keyY };
+        return [
+          key,
+          new CellInfo(tempCell).deserializeCell(cellInfoJsonString),
+        ];
+      }),
+    );
+  }
+  return new Map<string, CellInfo>();
+}
+
+function getPlayerCoins(): Coin[] {
+  if (localStorage.getItem("playerCoins") === null) {
+    return [];
+  }
+  return JSON.parse(localStorage.getItem("playerCoins")!);
+}
+
+function getPlayerPos(): leaflet.LatLng {
+  if (localStorage.getItem("playerPos") == null) {
+    return MERRILL_CLASSROOM;
+  }
+  return JSON.parse(localStorage.getItem("playerPos")!) as leaflet.LatLng;
+}
+
 playerMarker.bindTooltip("That's you!");
 playerMarker.addTo(map);
 
 const statusPanel = document.querySelector<HTMLDivElement>("#statusPanel")!;
-statusPanel.innerHTML = "No points yet...";
+updateStatusPanel();
 
 /**
  * the function will create a pit at the given coordinates.
@@ -198,9 +278,9 @@ function makePit(lat: number, lng: number) {
   });
   pit.addTo(map);
   pits.push(pit);
-  // console.log(myCellInfo.get(key)!.getCellJsonString());
 }
-statusPanel.addEventListener("playerCoinChanges", () => {
+statusPanel.addEventListener("playerCoinChanges", updateStatusPanel);
+function updateStatusPanel() {
   let context: string =
     playerCoins.length > 0
       ? `${playerCoins.length} points accumulated`
@@ -220,21 +300,19 @@ statusPanel.addEventListener("playerCoinChanges", () => {
     context += `</div>`;
   }
   statusPanel.innerHTML = context;
-});
-for (let i = -NEIGHBORHOOD_SIZE; i < NEIGHBORHOOD_SIZE; i++) {
-  for (let j = -NEIGHBORHOOD_SIZE; j < NEIGHBORHOOD_SIZE; j++) {
-    if (
-      luck(
-        [
-          MERRILL_CLASSROOM.lat + i * TILE_DEGREES,
-          MERRILL_CLASSROOM.lng + j * TILE_DEGREES,
-        ].toString(),
-      ) < PIT_SPAWN_PROBABILITY
-    ) {
-      makePit(
-        MERRILL_CLASSROOM.lat + i * TILE_DEGREES,
-        MERRILL_CLASSROOM.lng + j * TILE_DEGREES,
-      );
-    }
-  }
+}
+updatePits(playerPos);
+window.addEventListener("beforeunload", autoSave);
+function autoSave() {
+  localStorage.setItem(
+    "myCellInfo",
+    JSON.stringify(
+      Array.from(myCellInfo.entries(), ([key, value]) => [
+        key,
+        value.getCellJsonString(),
+      ]),
+    ),
+  );
+  localStorage.setItem("playerCoins", JSON.stringify(playerCoins));
+  localStorage.setItem("playerPos", JSON.stringify(playerPos));
 }
