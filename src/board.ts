@@ -31,10 +31,7 @@ export class Board {
   }
 
   getCellForPoint(point: leaflet.LatLng): Cell {
-    const step = 0.0001;
     let { lat, lng } = point;
-    lat = Math.round(lat / step);
-    lng = Math.round(lng / step);
     return this.getCanonicalCell({
       x: lat,
       y: lng,
@@ -56,11 +53,19 @@ export class Board {
   getCellsNearPoint(point: leaflet.LatLng): Cell[] {
     const resultCells: Cell[] = [];
     const originCell = this.getCellForPoint(point);
-    for (let h = -1; h <= 1; h++) {
-      for (let v = -1; v <= 1; v++) {
+    for (
+      let h = -this.tileVisibilityRadius;
+      h <= this.tileVisibilityRadius;
+      h++
+    ) {
+      for (
+        let v = -this.tileVisibilityRadius;
+        v <= this.tileVisibilityRadius;
+        v++
+      ) {
         const cell = this.getCanonicalCell({
-          x: originCell.x + h * this.tileVisibilityRadius,
-          y: originCell.y + v * this.tileVisibilityRadius,
+          x: originCell.x + h * this.tileWidth,
+          y: originCell.y + v * this.tileWidth,
         });
         resultCells.push(cell);
       }
@@ -74,6 +79,9 @@ export class Board {
   }
 }
 
+/**
+ * Momento
+ */
 export class CellInfo {
   cell: Cell;
   coins: Coin[];
@@ -81,12 +89,12 @@ export class CellInfo {
   coinsJsonString: string[];
   cellJsonString: string;
 
-  constructor(cell: Cell) {
+  constructor(cell: Cell, coins?: Coin[]) {
     this.cell = cell;
-    this.coins = [];
-    this.coinsDisplay = [];
-    this.coinsJsonString = [];
-    this.cellJsonString = ``;
+    this.coins = coins ?? [];
+    this.coinsDisplay = coins ? this.getCoinsDisplay() : [];
+    this.coinsJsonString = coins ? this.getCoinsToJsonString() : [];
+    this.cellJsonString = coins ? this.getCellJsonString() : ``;
   }
 
   addCoin(coin?: Coin): void {
@@ -99,7 +107,7 @@ export class CellInfo {
               this.coins.length > 0
                 ? this.coins[this.coins.length - 1].serial + 1
                 : 0,
-          }
+          },
     );
     this.getCoinsDisplay();
     this.cellJsonString = this.getCoinsToJsonString().join(" ");
@@ -123,12 +131,12 @@ export class CellInfo {
 
   getCoinsToJsonString(): string[] {
     return (this.coinsJsonString = this.coins.map((coin) =>
-      JSON.stringify(coin)
+      JSON.stringify(coin),
     ));
   }
   getCoinsFromJsonString(): Coin[] {
-    return (this.coins = this.coinsJsonString.map((coinString) =>
-      JSON.parse(coinString)
+    return (this.coins = this.coinsJsonString.map(
+      (coinString) => JSON.parse(coinString) as Coin,
     ));
   }
   getCoinsDisplay() {
@@ -138,7 +146,7 @@ export class CellInfo {
         ":" +
         coin.cell.y.toString() +
         "#" +
-        coin.serial.toString()
+        coin.serial.toString(),
     ));
   }
   getCellJsonString(): string {
